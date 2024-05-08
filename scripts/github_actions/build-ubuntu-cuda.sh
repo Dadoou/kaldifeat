@@ -22,14 +22,19 @@ if [ -z $CUDA_VERSION ]; then
   exit 1
 fi
 
+if [[ $TORCH_VERSION =~ 2.2.* && $CUDA_VERSION =~ 12.* ]]; then
+  # see https://github.com/pytorch/pytorch/issues/113948
+  export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
+fi
+
 
 yum -y install openssl-devel bzip2-devel libffi-devel xz-devel wget redhat-lsb-core
 
 
-echo "Installing ${PYTHON_VERSION}.3"
-curl -O https://www.python.org/ftp/python/${PYTHON_VERSION}.3/Python-${PYTHON_VERSION}.3.tgz
-tar xf Python-${PYTHON_VERSION}.3.tgz
-pushd Python-${PYTHON_VERSION}.3
+echo "Installing ${PYTHON_VERSION}.2"
+curl -O https://www.python.org/ftp/python/${PYTHON_VERSION}.2/Python-${PYTHON_VERSION}.2.tgz
+tar xf Python-${PYTHON_VERSION}.2.tgz
+pushd Python-${PYTHON_VERSION}.2
 
 PYTHON_INSTALL_DIR=$PWD/py-${PYTHON_VERSION}
 
@@ -44,7 +49,7 @@ make install >/dev/null 2>&1
 popd
 
 echo "pwd: $PWD"
-# rm -rf Python-${PYTHON_VERSION}.3
+# rm -rf Python-${PYTHON_VERSION}.2
 
 export PATH=$PYTHON_INSTALL_DIR/bin:$PATH
 export LD_LIBRARY_PATH=$PYTHON_INSTALL_DIR/lib:$LD_LIBRARY_PATH
@@ -66,6 +71,18 @@ python3 -m pip install bs4 requests tqdm auditwheel
 
 echo "Installing torch"
 ./install_torch.sh
+
+# -- Autodetected CUDA architecture(s): 5.0;8.0;8.6;8.9;9.0;9.0a
+# CMake Error at /Python-3.8.2/py-3.8/lib/python3.8/site-packages/torch/share/cmake/Caffe2/Modules_CUDA_fix/upstream/FindCUDA/select_compute_arch.cmake:227 (message):
+#   Unknown CUDA Architecture Name 9.0a in CUDA_SELECT_NVCC_ARCH_FLAGS
+# Call Stack (most recent call first):
+#   /Python-3.8.2/py-3.8/lib/python3.8/site-packages/torch/share/cmake/Caffe2/public/utils.cmake:401 (cuda_select_nvcc_arch_flags)
+#   /Python-3.8.2/py-3.8/lib/python3.8/site-packages/torch/share/cmake/Caffe2/public/cuda.cmake:342 (torch_cuda_get_nvcc_gencode_flag)
+#   /Python-3.8.2/py-3.8/lib/python3.8/site-packages/torch/share/cmake/Caffe2/Caffe2Config.cmake:87 (include)
+#   /Python-3.8.2/py-3.8/lib/python3.8/site-packages/torch/share/cmake/Torch/TorchConfig.cmake:68 (find_package)
+#   cmake/torch.cmake:14 (find_package)
+#   CMakeLists.txt:62 (include)
+sed -i.bak /9.0a/d /Python-*/py-3.*/lib/python3.*/site-packages/torch/share/cmake/Caffe2/Modules_CUDA_fix/upstream/FindCUDA/select_compute_arch.cmake
 
 rm -rf ~/.cache/pip >/dev/null 2>&1
 yum clean all >/dev/null 2>&1
@@ -91,13 +108,33 @@ auditwheel --verbose repair \
   --exclude libtorch_cuda.so \
   --exclude libtorch_python.so \
   \
-  --exclude libcudnn.so.8 \
+  --exclude libcublas.so \
   --exclude libcublas.so.11 \
+  --exclude libcublas.so.12 \
+  --exclude libcublasLt.so \
   --exclude libcublasLt.so.11 \
+  --exclude libcublasLt.so.12 \
   --exclude libcudart.so.11.0 \
+  --exclude libcudart.so.12 \
+  --exclude libcudnn.so.8 \
+  --exclude libcufft.so \
+  --exclude libcufft.so.11 \
+  --exclude libcupti.so \
+  --exclude libcupti.so.12 \
+  --exclude libcurand.so \
+  --exclude libcurand.so.10 \
+  --exclude libcusparse.so \
+  --exclude libcusparse.so.12 \
+  --exclude libnccl.so \
+  --exclude libnccl.so.2 \
+  --exclude libnvJitLink.so \
+  --exclude libnvJitLink.so.12 \
+  --exclude libnvrtc.so \
   --exclude libnvrtc.so.11.2 \
-  --exclude libtorch_cuda_cu.so \
+  --exclude libnvrtc.so.12 \
+  --exclude libshm.so \
   --exclude libtorch_cuda_cpp.so \
+  --exclude libtorch_cuda_cu.so \
   --plat manylinux_2_17_x86_64 \
   -w /var/www/wheelhouse \
   dist/*.whl
